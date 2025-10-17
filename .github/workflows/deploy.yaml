@@ -1,0 +1,40 @@
+# .github/workflows/deploy.yml
+name: Deploy to Google Cloud Run
+
+on:
+  push:
+    branches: [main] # Troque para 'master' se sua branch principal tiver esse nome
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: southamerica-east1 # <-- MUDADO!
+  SERVICE_NAME: svelte-starter-project # <-- MUDADO!
+
+jobs:
+  deploy:
+    name: Deploy to Cloud Run
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Login to GCP
+        id: auth
+        uses: google-github-actions/setup-gcloud@v0
+        with:
+          service_account_key: ${{ secrets.GCP_CREDENTIALS }}
+          project_id: ${{ env.PROJECT_ID }}
+
+      # ... (o resto dos passos de build e push são iguais) ...
+
+      - name: Deploy Docker image
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image "gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}" \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 3000 \ # <-- MUDADO! Essencial para SvelteKit
+            --memory 256Mi \
+            --max-instances 2
