@@ -1,40 +1,39 @@
-# .github/workflows/deploy.yml
-name: Deploy to Google Cloud Run
+name: GCP
 
 on:
   push:
-    branches: [main] # Troque para 'master' se sua branch principal tiver esse nome
-
-env:
-  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  REGION: southamerica-east1 # <-- MUDADO!
-  SERVICE_NAME: svelte-starter-project # <-- MUDADO!
+    branches: [main]
 
 jobs:
   deploy:
-    name: Deploy to Cloud Run
+    name: Setup Gcloud Account
     runs-on: ubuntu-latest
-
+    environment: hw-prod
+    env:
+      IMAGE_NAME: gcr.io/${{ secrets.GCP_PROJECT_ID }}/site:latest
     steps:
+      # Git checkout
       - name: Checkout
         uses: actions/checkout@v2
 
-      - name: Login to GCP
-        id: auth
-        uses: google-github-actions/setup-gcloud@v0
+      # Login to GCP
+      - uses: google-github-actions/setup-gcloud@v0.2.0
         with:
           service_account_key: ${{ secrets.GCP_CREDENTIALS }}
-          project_id: ${{ env.PROJECT_ID }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-      # ... (o resto dos passos de build e push são iguais) ...
+      # gcloud configure docker
+      - name: Configure Docker
+        run: gcloud auth configure-docker --quiet
 
+      # build image
+      - name: Build Docker image
+        run: docker build -t $IMAGE_NAME .
+
+      # push image to registry
+      - name: Push Docker image
+        run: docker push $IMAGE_NAME
+
+      # deploy image
       - name: Deploy Docker image
-        run: |
-          gcloud run deploy ${{ env.SERVICE_NAME }} \
-            --image "gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}" \
-            --region ${{ env.REGION }} \
-            --platform managed \
-            --allow-unauthenticated \
-            --port 3000 \ # <-- MUDADO! Essencial para SvelteKit
-            --memory 256Mi \
-            --max-instances 2
+        run: gcloud run deploy site --image $IMAGE_NAME --region us-central1 --memory 128Mi --min-instances 0 --max-instances 1 --platform managed --port 80 --allow-unauthenticated
